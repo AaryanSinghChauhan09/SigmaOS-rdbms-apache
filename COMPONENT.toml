@@ -1,0 +1,16 @@
+[component]
+name = "SigmaOS-rdbms-apache"
+tier = 3
+stability = "scaffold"
+language = "rust"
+description = "Apache database integration for SigmaOS — Derby, Cassandra, and HBase connectivity and packaging"
+upstream = ["https://github.com/apache/cassandra"]
+
+[contract]
+provides = ["apache-db-connectivity"]
+depends_on = []
+
+[maturity]
+status = "Scaffold"
+test_evidence = "Compiles"
+next_milestone = "Verification test suite"

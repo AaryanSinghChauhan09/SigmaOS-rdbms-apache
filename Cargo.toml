@@ -1,0 +1,9 @@
+[package]
+name = "sigmaos_rdbms_apache"
+version = "0.1.0"
+edition = "2021"
+description = "Apache database integration for SigmaOS — Derby, Cassandra, and HBase connectivity and packaging"
+
+[lib]
+name = "sigmaos_rdbms_apache"
+path = "src/lib.rs"
