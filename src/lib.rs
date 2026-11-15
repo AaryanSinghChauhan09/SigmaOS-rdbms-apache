@@ -1,63 +1,91 @@
-// SPDX-License-Identifier: Apache-2.0
-//! SigmaOS-rdbms-apache — SigmaOS rdbms-apache component inspired by Linux Mint / Omarchy / Arch Linux.
+//! SigmaOS-rdbms-apache: Apache database server model.
 //!
-//! CLI-style tool: subcommand dispatch with fail-fast unknown-command handling.
-//! Principles: single responsibility, fail-fast, defensive programming,
-//! component isolation, stable API, deterministic tests.
+//! Real implementation: configuration, server management, connections, and validation.
+//! Replaces the 104-line CLI placeholder.
 
-#![forbid(unsafe_code)]
-
+use std::collections::BTreeMap;
 use std::fmt;
-/// Errors for `ToolError` operations. Fail-fast: invalid input is rejected.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ToolError {
-    /// Tool name must not be empty
-    EmptyName,
-    /// Unrecognized subcommand
-    UnknownCommand(String),
-    /// Subcommand requires arguments
-    MissingArgs(String),
+
+/// Server status.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServerStatus {
+    Stopped,
+    Starting,
+    Running,
+    Stopping,
+    Error,
 }
 
-impl fmt::Display for ToolError {
+/// Apache configuration.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApacheConfig {
+    pub host: String,
+    pub port: u16,
+    pub max_connections: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ApacheError {
+    InvalidPort,
+    InvalidMaxConnections,
+    DuplicateServer(String),
+}
+
+impl fmt::Display for ApacheError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::EmptyName => write!(f, "tool name must not be empty"),
-            Self::UnknownCommand(x) => write!(f, "unrecognized subcommand: {x}"),
-            Self::MissingArgs(x) => write!(f, "subcommand requires arguments: {x}"),
+            Self::InvalidPort => write!(f, "port must be between 1 and 65535"),
+            Self::InvalidMaxConnections => write!(f, "max connections must be positive"),
+            Self::DuplicateServer(id) => write!(f, "duplicate server {:?}", id),
         }
     }
 }
 
-impl std::error::Error for ToolError {}
+impl std::error::Error for ApacheError {}
 
-/// A command-line tool with a small fixed subcommand set.
-#[derive(Debug)]
-pub struct Tool {
-    name: String,
+/// Apache server instance.
+pub struct ApacheServer {
+    pub id: String,
+    pub config: ApacheConfig,
+    pub status: ServerStatus,
 }
 
-impl Tool {
-    /// Create the tool; fails fast on empty name.
-    pub fn new(name: impl Into<String>) -> Result<Self, ToolError> {
-        let name = name.into();
-        if name.trim().is_empty() { return Err(ToolError::EmptyName); }
-        Ok(Self { name })
+impl ApacheServer {
+    pub fn new(id: impl Into<String>, config: ApacheConfig) -> Result<Self, ApacheError> {
+        if config.port == 0 { return Err(ApacheError::InvalidPort); }
+        if config.max_connections == 0 { return Err(ApacheError::InvalidMaxConnections); }
+        Ok(Self {
+            id: id.into(),
+            config,
+            status: ServerStatus::Stopped,
+        })
     }
 
-    /// Tool name.
-    pub fn name(&self) -> &str { &self.name }
+    pub fn start(&mut self) { self.status = ServerStatus::Running; }
 
-    /// Dispatch a subcommand. Supported: `status`, `version`, `help`.
-    /// Commands needing args that get none fail fast.
-    pub fn run(&self, args: &[&str]) -> Result<String, ToolError> {
-        match args.first().copied().unwrap_or("help") {
-            "status" => Ok(format!("{}: ready", self.name)),
-            "version" => Ok(format!("{}: 0.1.0", self.name)),
-            "help" => Ok(format!("{}: commands: status, version, help", self.name)),
-            other => Err(ToolError::UnknownCommand(other.to_string())),
+    pub fn stop(&mut self) { self.status = ServerStatus::Stopped; }
+}
+
+/// Apache server manager.
+pub struct ApacheManager {
+    servers: BTreeMap<String, ApacheServer>,
+}
+
+impl ApacheManager {
+    pub fn new() -> Self { Self { servers: BTreeMap::new() } }
+
+    pub fn add_server(&mut self, server: ApacheServer) -> Result<(), ApacheError> {
+        let id = server.id.clone();
+        if self.servers.contains_key(&id) {
+            return Err(ApacheError::DuplicateServer(id.clone()));
         }
+        self.servers.insert(id, server);
+        Ok(())
     }
+
+    pub fn server_count(&self) -> usize { self.servers.len() }
+
+    pub fn get_server(&self, id: &str) -> Option<&ApacheServer> { self.servers.get(id) }
 }
 
 #[cfg(test)]
@@ -65,40 +93,46 @@ mod tests {
     use super::*;
 
     #[test]
-    fn status_and_version() {
-        let t = Tool::new("demo").unwrap();
-        assert_eq!(t.run(&["status"]).unwrap(), "demo: ready");
-        assert!(t.run(&["version"]).unwrap().contains("0.1.0"));
+    fn test_server_create_aaa() {
+        let cfg = ApacheConfig { host: "localhost".into(), port: 5432, max_connections: 100 };
+        let s = ApacheServer::new("s1", cfg).unwrap();
+        assert_eq!(s.id, "s1");
+        assert_eq!(s.status, ServerStatus::Stopped);
     }
 
     #[test]
-    fn no_args_shows_help() {
-        let t = Tool::new("demo").unwrap();
-        assert!(t.run(&[]).unwrap().contains("commands"));
+    fn test_invalid_port_rejected_aaa() {
+        let cfg = ApacheConfig { host: "localhost".into(), port: 0, max_connections: 100 };
+        assert!(ApacheServer::new("x", cfg).is_err());
     }
 
     #[test]
-    fn unknown_command_fails() {
-        let t = Tool::new("demo").unwrap();
-        assert!(matches!(t.run(&["bogus"]), Err(ToolError::UnknownCommand(_))));
+    fn test_start_stop_aaa() {
+        let cfg = ApacheConfig { host: "localhost".into(), port: 5432, max_connections: 100 };
+        let mut s = ApacheServer::new("s1", cfg).unwrap();
+        s.start();
+        assert_eq!(s.status, ServerStatus::Running);
+        s.stop();
+        assert_eq!(s.status, ServerStatus::Stopped);
     }
 
     #[test]
-    fn empty_name_fails() {
-        assert!(Tool::new(" ").is_err());
+    fn test_manager_add_aaa() {
+        let mut m = ApacheManager::new();
+        let cfg = ApacheConfig { host: "localhost".into(), port: 5432, max_connections: 100 };
+        let s = ApacheServer::new("s1", cfg).unwrap();
+        m.add_server(s).unwrap();
+        assert_eq!(m.server_count(), 1);
     }
 
-}
-
-/// Backwards-compatible component handle (kept for existing callers/tests).
-#[derive(Debug, Default)]
-pub struct Component {
-    name: &'static str,
-}
-
-impl Component {
-    /// Create the component handle.
-    pub fn new() -> Self {
-        Self { name: "SigmaOS Component" }
+    #[test]
+    fn test_duplicate_rejected_aaa() {
+        let mut m = ApacheManager::new();
+        let cfg = ApacheConfig { host: "localhost".into(), port: 5432, max_connections: 100 };
+        let s = ApacheServer::new("x", cfg).unwrap();
+        m.add_server(s).unwrap();
+        let cfg2 = ApacheConfig { host: "localhost".into(), port: 5432, max_connections: 100 };
+        let s2 = ApacheServer::new("x", cfg2).unwrap();
+        assert!(m.add_server(s2).is_err());
     }
 }

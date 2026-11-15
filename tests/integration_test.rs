@@ -1,6 +1,8 @@
-use sigmaos_rdbms_apache::Component;
+use sigmaos_rdbms_apache::{ApacheManager, ApacheServer, ApacheConfig};
 
 #[test]
-fn component_constructs() {
-    let _c = Component::new();
+fn apache_manager_integration_aaa() {
+    let mut m = ApacheManager::new();
+    m.add_server(ApacheServer::new("s1", ApacheConfig { host: "localhost".into(), port: 5432, max_connections: 100 }).unwrap()).unwrap();
+    assert_eq!(m.server_count(), 1);
 }
