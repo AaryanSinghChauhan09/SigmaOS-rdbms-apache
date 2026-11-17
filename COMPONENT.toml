@@ -1,7 +1,7 @@
 [component]
 name = "SigmaOS-rdbms-apache"
 tier = 3
-stability = "scaffold"
+stability = "beta"
 language = "rust"
 description = "Apache ecosystem RDBMS connectors & analytics bridges for SigmaOS"
 upstream = ["https://github.com/apache/cassandra"]
@@ -11,6 +11,6 @@ provides = ["apache-db-connectivity"]
 depends_on = []
 
 [maturity]
-status = "Scaffold"
+status = "Implemented"
 test_evidence = "Compiles"
 next_milestone = "Verification test suite"
