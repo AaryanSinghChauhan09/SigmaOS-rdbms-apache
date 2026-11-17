@@ -3,7 +3,7 @@ name = "SigmaOS-rdbms-apache"
 tier = 3
 stability = "scaffold"
 language = "rust"
-description = "Apache database integration for SigmaOS — Derby, Cassandra, and HBase connectivity and packaging"
+description = "Apache ecosystem RDBMS connectors & analytics bridges for SigmaOS"
 upstream = ["https://github.com/apache/cassandra"]
 
 [contract]
